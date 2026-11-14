@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<title>班级每日作业展示板</title>
+<!-- 页面图标：内联 SVG，base64 data URI，无外部请求、无额外文件。
+     图形 = 圆角看板 + 顶部标题条 + 3×2 六科色块（与卡片科目色一致） -->
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NCIgaGVpZ2h0PSI2NCIgdmlld0JveD0iMCAwIDY0IDY0Ij48cmVjdCB4PSIyIiB5PSIyIiB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHJ4PSIxMiIgZmlsbD0iIzE0MTgxZSIgc3Ryb2tlPSIjM2E0NDUyIiBzdHJva2Utd2lkdGg9IjMiLz48cmVjdCB4PSIxMSIgeT0iMTEiIHdpZHRoPSI0MiIgaGVpZ2h0PSI2IiByeD0iMyIgZmlsbD0iI2UwOGEzYyIvPjxyZWN0IHg9IjExIiB5PSIyNCIgd2lkdGg9IjEyIiBoZWlnaHQ9IjEyIiByeD0iMiIgZmlsbD0iI2JmNGEzYSIvPjxyZWN0IHg9IjI2IiB5PSIyNCIgd2lkdGg9IjEyIiBoZWlnaHQ9IjEyIiByeD0iMiIgZmlsbD0iIzJmNmRiMyIvPjxyZWN0IHg9IjQxIiB5PSIyNCIgd2lkdGg9IjEyIiBoZWlnaHQ9IjEyIiByeD0iMiIgZmlsbD0iI2E5NzYxYiIvPjxyZWN0IHg9IjExIiB5PSI0MCIgd2lkdGg9IjEyIiBoZWlnaHQ9IjEyIiByeD0iMiIgZmlsbD0iIzczNTJhOCIvPjxyZWN0IHg9IjI2IiB5PSI0MCIgd2lkdGg9IjEyIiBoZWlnaHQ9IjEyIiByeD0iMiIgZmlsbD0iIzE1ODQ3YyIvPjxyZWN0IHg9IjQxIiB5PSI0MCIgd2lkdGg9IjEyIiBoZWlnaHQ9IjEyIiByeD0iMiIgZmlsbD0iIzRjOGEzZSIvPjwvc3ZnPg==">
+<style>
+  :root { color-scheme: light dark; --meta-font:15px; }  /* 卡片元信息与输入占位提示共用同一字号 */
+  html[data-theme="light"] {
+    --bg:#f4efe4; --panel:#fffcf4; --ink:#241f18; --muted:#6c6252; --empty:#8a8170;
+    --line:#d8cdb8; --chip:#ece5d5; --accent:#b3541e; --accent-ink:#ffffff;
+    --warn-bg:#fff2d2; --warn-ink:#774a00; --shadow:0 3px 10px rgba(60,45,20,.10);
+  }
+  html[data-theme="dark"] {
+    --bg:#14181e; --panel:#1f252e; --ink:#f3efe6; --muted:#aab3c0; --empty:#8b95a3;
+    --line:#3a4452; --chip:#2b3340; --accent:#e08a3c; --accent-ink:#171a1f;
+    --warn-bg:#3a2f18; --warn-ink:#ffd98a; --shadow:0 3px 12px rgba(0,0,0,.35);
+  }
+  * { box-sizing:border-box; }
+  html, body { height:100%; }
+  body {
+    margin:0; overflow:hidden; background:var(--bg); color:var(--ink);
+    font-family:"Microsoft YaHei","微软雅黑","PingFang SC","SimHei","黑体",sans-serif;
+  }
+  [hidden] { display:none !important; }
+  button, input, textarea { font-family:inherit; }
+  button:focus-visible, input:focus-visible, textarea:focus-visible {
+    outline:2px solid var(--accent); outline-offset:1px;
+  }
+  /* 展示态的作业方框正文保持 36px 起；其余界面元素一律紧凑，把高度让给方框 */
+  #app { height:100vh; display:flex; flex-direction:column; border-top:4px solid transparent; }
+  #app[data-mode="edit"] { border-top-color:var(--accent); }
+
+  .warn {
+    flex:0 0 auto; padding:5px 20px; font-size:15px; line-height:1.35;
+    background:var(--warn-bg); color:var(--warn-ink); border-bottom:2px solid var(--line);
+  }
+
+  .topbar {
+    flex:0 0 auto; display:flex; align-items:center; justify-content:space-between;
+    gap:16px; padding:6px 20px; border-bottom:2px solid var(--line);
+  }
+  /* 标题栏图标：与 favicon 同图形，板面/标题条颜色随深浅主题变化 */
+  .brand { display:flex; align-items:center; gap:10px; min-width:0; }
+  .brand-icon { flex:0 0 auto; display:block; width:36px; height:36px; }
+  .brand-icon .ib-board { fill:var(--panel); stroke:var(--line); stroke-width:3; }
+  .brand-icon .ib-head { fill:var(--accent); }
+  #mainTitle { margin:0; font-size:34px; line-height:1.12; font-weight:700; letter-spacing:0; }
+  .subline { margin-top:3px; font-size:15px; color:var(--muted); display:flex; align-items:center; gap:10px; }
+  .badge, .mode-badge {
+    font-size:14px; padding:2px 8px; border-radius:6px; background:var(--chip); color:var(--muted);
+  }
+  .mode-badge { font-weight:700; color:var(--ink); }
+  .mode-badge.mode-edit { background:var(--accent); color:var(--accent-ink); }
+  .top-note { font-size:15px; color:var(--muted); white-space:nowrap; }
+  .date-label { min-width:104px; text-align:center; font-size:14px; font-variant-numeric:tabular-nums; }
+
+  /* 底部 dock 按钮：整体缩到原尺寸的约 2/5（高度 34px、字号 13px），作业方框正文不受影响 */
+  .btn {
+    min-height:34px; min-width:36px; padding:0 9px; font-size:13px; font-weight:600;
+    border:1px solid var(--line); border-radius:6px; background:var(--panel); color:var(--ink);
+    cursor:pointer; white-space:nowrap;
+  }
+  .btn:hover { border-color:var(--accent); }
+  .btn.primary { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+  .btn:disabled { opacity:.35; cursor:not-allowed; background:var(--panel); color:var(--ink); border-color:var(--line); }
+  .btn:disabled:hover { border-color:var(--line); }
+  /* 编辑态字号控件：关闭自适应后 + / - 才亮起 */
+  .tool-sep { width:1px; height:20px; background:var(--line); margin:0 1px; flex:0 0 1px; }
+  .btn.font-btn { width:34px; min-width:34px; height:34px; padding:0; font-size:19px; line-height:1; font-weight:700; }
+  .btn.font-btn.lit { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+  .font-label { font-size:13px; color:var(--muted); min-width:62px; text-align:center; white-space:nowrap; }
+
+  .board {
+    flex:1 1 auto; min-height:0; display:grid;
+    grid-template-columns:repeat(3,minmax(0,1fr)); grid-template-rows:repeat(2,minmax(0,1fr));
+    gap:12px; padding:10px 20px;
+  }
+  .card {
+    display:flex; flex-direction:column; min-height:0; overflow:hidden;
+    background:var(--panel); border:2px solid var(--line); border-radius:10px; box-shadow:var(--shadow);
+  }
+  .card-accent { flex:0 0 8px; height:8px; background:var(--bar); }
+  .card-top { flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; padding:5px 14px 3px; }
+  .card-title { margin:0; font-size:27px; font-weight:700; line-height:1.15; }
+  .card-title::before {
+    content:""; display:inline-block; width:10px; height:10px; border-radius:50%;
+    background:var(--bar); margin-right:8px; vertical-align:middle;
+  }
+  .card-chip { font-size:14px; padding:2px 8px; border-radius:6px; background:var(--chip); color:var(--muted); }
+  .card-chip.unsaved { background:var(--accent); color:var(--accent-ink); font-weight:700; }
+  .card-body { flex:1 1 auto; min-height:0; overflow-y:auto; padding:6px 16px 8px; }
+  /* 作业正文：3 米外可读，字号由脚本在 36~28px 间自适应，此处保持原样 */
+  .hw-text {
+    font-size:36px; line-height:1.3; font-weight:500; color:var(--ink);
+    white-space:pre-wrap; word-break:break-word; overflow-wrap:anywhere;
+  }
+  .hw-text.empty {
+    height:100%; display:flex; align-items:center; justify-content:center;
+    color:var(--empty); font-weight:600;
+  }
+  .hw-input {
+    display:block; width:100%; height:100%; min-height:90px; resize:none;
+    font-size:30px; line-height:1.35; padding:8px 10px;
+    border:2px solid var(--line); border-radius:8px; background:var(--bg); color:var(--ink);
+  }
+  /* 占位提示固定为元信息字号，不跟随正文自适应字号放大；六科共用这一条规则 */
+  .hw-input::placeholder { font-size:var(--meta-font); line-height:1.4; color:var(--muted); opacity:1; }
+  .hw-input::-webkit-input-placeholder { font-size:var(--meta-font); line-height:1.4; color:var(--muted); opacity:1; }
+  .card-foot { flex:0 0 auto; min-height:26px; padding:2px 16px 6px; font-size:var(--meta-font); color:var(--muted); }
+  .card-body::-webkit-scrollbar { width:10px; }
+  .card-body::-webkit-scrollbar-thumb { background:var(--line); border-radius:5px; }
+
+  /* 底部统一操作区：一行紧凑按钮，尽量把高度留给六科作业方框 */
+  .dock {
+    flex:0 0 auto; display:flex; flex-direction:column;
+    padding:4px 20px; border-top:1px solid var(--line); background:var(--panel);
+  }
+  .dock-row { display:flex; align-items:center; gap:7px; min-height:36px; }
+  .dock-btns { flex:0 0 auto; display:flex; align-items:center; gap:6px; }
+  .dock-group { display:flex; align-items:center; gap:6px; }
+  .dock-info {
+    flex:1 1 auto; margin-left:auto; min-width:0; max-width:34%;
+    display:flex; flex-direction:column; align-items:flex-end; justify-content:center;
+    gap:1px; text-align:right;
+  }
+  .dock-info span { display:block; max-width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .state-text { font-size:14px; font-weight:700; }
+  .state-text.edit { color:var(--accent); }
+  .status { font-size:13px; color:var(--muted); }
+  .hint { font-size:12px; color:var(--muted); }
+  /* 底部只保留一行；编辑态唯一出口是「保存并退出」 */
+</style>
+</head>
+<body>
+<div id="app" data-mode="view">
+  <div id="warn" class="warn" hidden></div>
+
+  <header class="topbar">
+    <div class="brand">
+      <svg class="brand-icon" width="64" height="64" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+        <rect class="ib-board" x="2" y="2" width="60" height="60" rx="12"/>
+        <rect class="ib-head" x="11" y="11" width="42" height="6" rx="3"/>
+        <rect x="11" y="24" width="12" height="12" rx="2" fill="#bf4a3a"/>
+        <rect x="26" y="24" width="12" height="12" rx="2" fill="#2f6db3"/>
+        <rect x="41" y="24" width="12" height="12" rx="2" fill="#a9761b"/>
+        <rect x="11" y="40" width="12" height="12" rx="2" fill="#7352a8"/>
+        <rect x="26" y="40" width="12" height="12" rx="2" fill="#15847c"/>
+        <rect x="41" y="40" width="12" height="12" rx="2" fill="#4c8a3e"/>
+      </svg>
+      <div>
+        <h1 id="mainTitle"></h1>
+        <div class="subline">
+          <span id="updateLine"></span>
+          <span id="dateBadge" class="badge"></span>
+          <span id="modeBadge" class="mode-badge"></span>
+        </div>
+      </div>
+    </div>
+    <div class="top-note">全部操作按钮在屏幕下方 ↓</div>
+  </header>
+
+  <main class="board" id="board">
+    <article class="card" data-sub="语文" style="--bar:#bf4a3a">
+      <div class="card-accent"></div>
+      <div class="card-top"><h2 class="card-title">语文</h2><span class="card-chip" data-role="chip"></span></div>
+      <div class="card-body" data-role="body"></div>
+      <div class="card-foot" data-role="meta"></div>
+    </article>
+    <article class="card" data-sub="数学" style="--bar:#2f6db3">
+      <div class="card-accent"></div>
+      <div class="card-top"><h2 class="card-title">数学</h2><span class="card-chip" data-role="chip"></span></div>
+      <div class="card-body" data-role="body"></div>
+      <div class="card-foot" data-role="meta"></div>
+    </article>
+    <article class="card" data-sub="英语" style="--bar:#a9761b">
+      <div class="card-accent"></div>
+      <div class="card-top"><h2 class="card-title">英语</h2><span class="card-chip" data-role="chip"></span></div>
+      <div class="card-body" data-role="body"></div>
+      <div class="card-foot" data-role="meta"></div>
+    </article>
+    <article class="card" data-sub="物理" style="--bar:#7352a8">
+      <div class="card-accent"></div>
+      <div class="card-top"><h2 class="card-title">物理</h2><span class="card-chip" data-role="chip"></span></div>
+      <div class="card-body" data-role="body"></div>
+      <div class="card-foot" data-role="meta"></div>
+    </article>
+    <article class="card" data-sub="化学" style="--bar:#15847c">
+      <div class="card-accent"></div>
+      <div class="card-top"><h2 class="card-title">化学</h2><span class="card-chip" data-role="chip"></span></div>
+      <div class="card-body" data-role="body"></div>
+      <div class="card-foot" data-role="meta"></div>
+    </article>
+    <article class="card" data-sub="生物" style="--bar:#4c8a3e">
+      <div class="card-accent"></div>
+      <div class="card-top"><h2 class="card-title">生物</h2><span class="card-chip" data-role="chip"></span></div>
+      <div class="card-body" data-role="body"></div>
+      <div class="card-foot" data-role="meta"></div>
+    </article>
+  </main>
+
+  <footer class="dock">
+    <div class="dock-row">
+      <div class="dock-btns">
+        <button type="button" class="btn" id="prevBtn" title="前一天（←）" aria-label="前一天">◀</button>
+        <span class="date-label" id="dateLabel"></span>
+        <button type="button" class="btn" id="nextBtn" title="后一天（→）" aria-label="后一天">▶</button>
+        <button type="button" class="btn" id="todayBtn">回到今天</button>
+        <span class="tool-sep"></span>
+        <button type="button" class="btn" id="themeBtn"></button>
+        <span class="dock-group" id="editTools" hidden>
+          <span class="tool-sep"></span>
+          <button type="button" class="btn" id="carryBtn">沿用昨天再改</button>
+          <button type="button" class="btn" id="exportBtn">导出 JSON</button>
+          <button type="button" class="btn" id="importBtn">导入 JSON</button>
+          <span class="tool-sep"></span>
+          <button type="button" class="btn primary" id="autoFitBtn" title="切换字号自适应">自适应：开</button>
+          <button type="button" class="btn font-btn" id="fontMinus" title="减小字号" aria-label="减小字号">−</button>
+          <span class="font-label" id="fontLabel"></span>
+          <button type="button" class="btn font-btn" id="fontPlus" title="增大字号" aria-label="增大字号">+</button>
+        </span>
+        <span class="tool-sep"></span>
+        <button type="button" class="btn primary" id="enterBtn">进入编辑 (F2)</button>
+        <button type="button" class="btn primary" id="exitBtn" hidden>保存并退出</button>
+      </div>
+      <div class="dock-info">
+        <span class="state-text" id="stateText"></span>
+        <span class="status" id="statusMsg"></span>
+        <span class="hint" id="hintText"></span>
+      </div>
+    </div>
+  </footer>
+</div>
+
+<input type="file" id="importFile" accept=".json,application/json" hidden>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ========== 常量与状态 ========== */
+  var SUBJECTS = ['语文', '数学', '英语', '物理', '化学', '生物'];
+  var PREFIX = 'classDailyHomework:v1:';            // localStorage 键名固定前缀
+  var DATA_KEY = PREFIX + 'data';                     // 值：{ "YYYY-MM-DD": { 科目: {text,at} } }
+  var FONT_MODE_KEY = PREFIX + 'fontMode';
+  var FONT_SIZE_KEY = PREFIX + 'fontSize';
+  var THEME_KEY = PREFIX + 'theme';                   // 旧版主题键，启动时清理，不再写入
+  var WEEK = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+
+  // 自适应：从 36px 起按 2px 递减，直到整段文字能完整放进方框；极限情况才保留滚动
+  var FONT_AUTO_MAX = 36, FONT_AUTO_MIN = 18, FONT_STEP = 2;
+  var FONT_MANUAL_MIN = 20, FONT_MANUAL_MAX = 56;
+
+  var state = {
+    mode: 'view',      // view 展示态 / edit 编辑态
+    dateKey: '',
+    data: {},
+    drafts: {},        // 当前编辑态、当前日期的六科草稿
+    dirty: {},         // 哪些科目被改动过，需要逐科落盘
+    theme: 'dark',     // 每次打开固定深色
+    fontMode: 'auto',  // auto 自适应 / manual 手动
+    fontSize: 36,      // 手动模式字号
+    storageOK: true
+  };
+
+  function $(id) { return document.getElementById(id); }
+  var app = $('app'), board = $('board'), warnEl = $('warn');
+  var cards = {};
+  SUBJECTS.forEach(function (s) { cards[s] = board.querySelector('[data-sub="' + s + '"]'); });
+
+  /* ========== 日期：全部使用本地时间，绝不走 UTC 序列化 ========== */
+  function pad(n) { return n < 10 ? '0' + n : String(n); }
+  function keyOf(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function todayKey() { return keyOf(new Date()); }
+  function parts(k) { var p = k.split('-'); return { y: +p[0], m: +p[1], d: +p[2] }; }
+  function dateFromKey(k) { var p = parts(k); return new Date(p.y, p.m - 1, p.d); }
+  function shiftKey(k, n) { var p = parts(k); return keyOf(new Date(p.y, p.m - 1, p.d + n)); }
+  function stamp(d) { return keyOf(d) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+  function shortStamp(s) {
+    s = String(s || '');
+    if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(s)) return s;
+    var p = parts(s.slice(0, 10));
+    return p.m + '月' + p.d + '日 ' + s.slice(11);
+  }
+  function diffDays(a, b) {
+    var x = parts(a), y = parts(b);
+    return Math.round((Date.UTC(x.y, x.m - 1, x.d) - Date.UTC(y.y, y.m - 1, y.d)) / 86400000);
+  }
+
+  /* ========== 本地存储与兜底 ========== */
+  function probeStorage() {
+    try {
+      var k = PREFIX + 'probe';
+      window.localStorage.setItem(k, '1');
+      window.localStorage.removeItem(k);
+      return true;
+    } catch (e) { return false; }
+  }
+  function setWarn(msg) {
+    if (msg) { warnEl.textContent = '⚠ ' + msg; warnEl.hidden = false; }
+    else { warnEl.textContent = ''; warnEl.hidden = true; }
+  }
+  // 每次写入前重新读取一遍存储，只合并本科目的改动，避免接力录入互相覆盖
+  function readStore() {
+    if (!state.storageOK) return state.data;
+    try {
+      var raw = window.localStorage.getItem(DATA_KEY);
+      if (raw === null) return {};
+      var obj = JSON.parse(raw);
+      if (!obj || typeof obj !== 'object' || Array.isArray(obj)) throw new Error('bad format');
+      return obj;
+    } catch (e) {
+      setWarn('本地数据读取失败，已按空白数据继续展示；原数据未被删除，可用「导入 JSON」恢复。');
+      return (state.data && typeof state.data === 'object') ? state.data : {};
+    }
+  }
+  function writeStore(obj) {
+    if (!state.storageOK) return false;
+    try {
+      window.localStorage.setItem(DATA_KEY, JSON.stringify(obj));
+      return true;
+    } catch (e) {
+      state.storageOK = false;
+      setWarn('写入本地存储失败（空间不足或被禁用）：本次录入仅保留在当前页面，请立即用「导出 JSON」备份。');
+      return false;
+    }
+  }
+  function loadData() {
+    if (!state.storageOK) {
+      state.data = {};
+      setWarn('浏览器本地存储不可用：页面仍可正常展示与录入，但刷新或关闭后数据会丢失，请用「导出 JSON」备份。');
+      return;
+    }
+    try {
+      var raw = window.localStorage.getItem(DATA_KEY);
+      if (raw === null) {
+        state.data = {};
+        window.localStorage.setItem(DATA_KEY, '{}');   // 首次启动初始化空结构
+      } else {
+        var obj = JSON.parse(raw);
+        if (!obj || typeof obj !== 'object' || Array.isArray(obj)) throw new Error('bad format');
+        state.data = obj;
+      }
+    } catch (e) {
+      state.data = {};
+      setWarn('本地数据格式异常，已按空白数据继续展示；未覆盖原有内容，可用「导入 JSON」恢复。');
+    }
+  }
+  function getDay(k) {
+    var d = state.data[k];
+    return (d && typeof d === 'object' && !Array.isArray(d)) ? d : {};
+  }
+  function getRec(k, sub) {
+    var r = getDay(k)[sub];
+    return (r && typeof r === 'object' && !Array.isArray(r)) ? r : null;
+  }
+
+  /* ========== 主题：每次打开固定深色，会话内可临时切换，不记住选择 ========== */
+  function loadTheme() {
+    state.theme = 'dark';
+    document.documentElement.setAttribute('data-theme', 'dark');
+    try { window.localStorage.removeItem(THEME_KEY); } catch (e) {}   // 清理旧版记住的主题
+  }
+  function toggleTheme() {
+    state.theme = (state.theme === 'light') ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', state.theme);
+    renderHeader();
+  }
+
+  /* ========== 字号偏好（默认自适应） ========== */
+  function saveFontPref() {
+    try {
+      window.localStorage.setItem(FONT_MODE_KEY, state.fontMode);
+      window.localStorage.setItem(FONT_SIZE_KEY, String(state.fontSize));
+    } catch (e) {}
+  }
+  function loadFontPref() {
+    try {
+      var m = window.localStorage.getItem(FONT_MODE_KEY);
+      if (m === 'auto' || m === 'manual') state.fontMode = m;
+      var n = parseInt(window.localStorage.getItem(FONT_SIZE_KEY), 10);
+      if (isFinite(n)) state.fontSize = Math.max(FONT_MANUAL_MIN, Math.min(FONT_MANUAL_MAX, n));
+    } catch (e) {}
+  }
+  // 给某科当前可见的正文元素（展示态 div / 编辑态 textarea）套用字号
+  function applyFontToCard(sub) {
+    var card = cards[sub];
+    var el = card.querySelector('.hw-input') || card.querySelector('.hw-text');
+    if (!el) return 0;
+    var isInput = el.classList.contains('hw-input');
+    function fits() {
+      var box = isInput ? el : el.parentNode;
+      return box.scrollHeight <= box.clientHeight + 2;
+    }
+    if (state.fontMode === 'manual') {
+      el.style.fontSize = state.fontSize + 'px';
+      return state.fontSize;
+    }
+    for (var s = FONT_AUTO_MAX; s >= FONT_AUTO_MIN; s -= FONT_STEP) {
+      el.style.fontSize = s + 'px';
+      if (fits()) return s;
+    }
+    return FONT_AUTO_MIN;   // 已到下限，仍放不下则由方框自身滚动兜底
+  }
+  function refreshFonts() { SUBJECTS.forEach(applyFontToCard); }
+  function updateFontUI() {
+    var auto = state.fontMode === 'auto';
+    var a = $('autoFitBtn'), minus = $('fontMinus'), plus = $('fontPlus');
+    a.textContent = auto ? '自适应：开' : '自适应：关';
+    a.className = 'btn' + (auto ? ' primary' : '');
+    minus.disabled = auto || state.fontSize <= FONT_MANUAL_MIN;
+    plus.disabled = auto || state.fontSize >= FONT_MANUAL_MAX;
+    minus.className = 'btn font-btn' + (auto ? '' : ' lit');
+    plus.className = 'btn font-btn' + (auto ? '' : ' lit');
+    $('fontLabel').textContent = auto ? '字号 自动' : ('字号 ' + state.fontSize + 'px');
+  }
+  function toggleAutoFit() {
+    state.fontMode = (state.fontMode === 'auto') ? 'manual' : 'auto';
+    saveFontPref();
+    refreshFonts();          // 不重建 DOM，输入框光标与内容保持不动
+    updateFontUI();
+    setStatus(state.fontMode === 'auto'
+      ? '自适应已开启：放不下会自动缩小，直到全文可见'
+      : '自适应已关闭：用 − / + 调整，当前 ' + state.fontSize + 'px');
+  }
+  function stepFont(delta) {
+    if (state.fontMode !== 'manual') return;
+    var n = Math.max(FONT_MANUAL_MIN, Math.min(FONT_MANUAL_MAX, state.fontSize + delta));
+    if (n === state.fontSize) return;
+    state.fontSize = n;
+    saveFontPref();
+    refreshFonts();
+    updateFontUI();
+    setStatus('手动字号：' + state.fontSize + 'px（仅关闭自适应时可调整）');
+  }
+
+  /* ========== 渲染（全部使用 textContent / value，绝不拼接 HTML 字符串） ========== */
+  function setStatus(msg) { $('statusMsg').textContent = msg || ''; }
+
+  function renderHeader() {
+    var d = dateFromKey(state.dateKey);
+    $('mainTitle').textContent = (d.getMonth() + 1) + '月' + d.getDate() + '日 ' + WEEK[d.getDay()] + ' · 今日作业';
+    $('dateLabel').textContent = state.dateKey;
+    var delta = diffDays(state.dateKey, todayKey());
+    var badge = delta === 0 ? '今天' : delta === -1 ? '昨天' : delta === 1 ? '明天' :
+                (delta < 0 ? (-delta) + '天前' : delta + '天后');
+    $('dateBadge').textContent = badge + ' · ' + state.dateKey;
+
+    var day = getDay(state.dateKey), latest = '';
+    SUBJECTS.forEach(function (sub) {
+      var r = day[sub];
+      if (r && typeof r.at === 'string' && r.at > latest) latest = r.at;
+    });
+    $('updateLine').textContent = latest ? ('更新时间：' + shortStamp(latest)) : '更新时间：该日期暂无更新';
+
+    var mb = $('modeBadge');
+    mb.textContent = state.mode === 'edit' ? '编辑态 · 可录入' : '展示态 · 只读';
+    mb.className = 'mode-badge' + (state.mode === 'edit' ? ' mode-edit' : '');
+    $('themeBtn').textContent = state.theme === 'light' ? '切换至深色' : '切换至浅色';
+    $('enterBtn').hidden = (state.mode === 'edit');
+    $('exitBtn').hidden = (state.mode !== 'edit');
+    app.setAttribute('data-mode', state.mode);
+  }
+
+  function renderBottom() {
+    var edit = (state.mode === 'edit');
+    $('editTools').hidden = !edit;
+    var st = $('stateText');
+    st.textContent = edit ? '编辑态 · 录入中' : '展示态 · 只读';
+    st.className = 'state-text' + (edit ? ' edit' : '');
+    $('hintText').textContent = edit
+      ? '点「保存并退出」或按 Esc 完成录入　·　失焦自动保存'
+      : 'F2 进入编辑态　·　← / → 翻看前后日期　·　按钮都在屏幕下方';
+    updateFontUI();
+  }
+
+  function renderMeta(sub, rec) {
+    var el = cards[sub].querySelector('[data-role="meta"]');
+    el.textContent = (rec && rec.at)
+      ? ('最后更新 ' + shortStamp(String(rec.at)) + ' · ' + sub)
+      : ('最后更新 — · ' + sub);
+  }
+
+  function renderChip(sub) {
+    var chip = cards[sub].querySelector('[data-role="chip"]');
+    if (state.mode === 'edit') {
+      var dirty = !!state.dirty[sub];
+      chip.textContent = dirty ? '未保存' : '已保存';
+      chip.className = 'card-chip' + (dirty ? ' unsaved' : '');
+    } else {
+      var rec = getRec(state.dateKey, sub);
+      chip.textContent = (rec && String(rec.text == null ? '' : rec.text).trim()) ? '已布置' : '无作业';
+      chip.className = 'card-chip';
+    }
+  }
+
+  function renderCard(sub) {
+    var card = cards[sub];
+    var body = card.querySelector('[data-role="body"]');
+    var rec = getRec(state.dateKey, sub);
+    var draft = state.drafts[sub] || { text: '' };
+
+    body.replaceChildren();
+    if (state.mode === 'edit') {
+      var ta = document.createElement('textarea');
+      ta.className = 'hw-input';
+      ta.maxLength = 3000;
+      ta.placeholder = '输入' + sub + '作业内容；留空表示「今日无作业」';
+      ta.setAttribute('aria-label', sub + '作业内容');
+      ta.value = draft.text;                         // 用户输入只通过 value 承载
+      body.appendChild(ta);
+    } else {
+      var txt = rec ? String(rec.text == null ? '' : rec.text) : '';
+      var div = document.createElement('div');
+      div.className = 'hw-text' + (txt.trim() ? '' : ' empty');
+      div.textContent = txt.trim() ? txt : '今日无作业';   // 纯文本渲染，脚本标签不会执行
+      body.appendChild(div);
+    }
+    applyFontToCard(sub);
+    renderMeta(sub, rec);
+    renderChip(sub);
+  }
+
+  function renderAll() {
+    renderHeader();
+    renderBottom();
+    SUBJECTS.forEach(renderCard);
+  }
+
+  /* ========== 草稿与逐科保存 ========== */
+  function initDrafts() {
+    state.drafts = {};
+    state.dirty = {};
+    SUBJECTS.forEach(function (sub) {
+      var rec = getRec(state.dateKey, sub);
+      state.drafts[sub] = { text: rec ? String(rec.text == null ? '' : rec.text) : '' };
+    });
+  }
+
+  // 从当前 DOM 同步一次草稿，防止极少数情况下遗漏 input 事件
+  function syncDraftsFromDOM() {
+    if (state.mode !== 'edit') return;
+    SUBJECTS.forEach(function (sub) {
+      var ta = cards[sub].querySelector('.hw-input');
+      if (!ta) return;
+      var d = state.drafts[sub];
+      if (d.text !== ta.value) { d.text = ta.value; state.dirty[sub] = true; }
+    });
+  }
+
+  // 逐科写入：先读最新存储 -> 只替换该日期该科目 -> 写回（避免整页提交覆盖他人录入）
+  function saveSubject(sub, silent) {
+    if (state.mode !== 'edit') return;
+    var d = state.drafts[sub];
+    if (!d) return;
+    var text = String(d.text == null ? '' : d.text);
+
+    var fresh = readStore();
+    state.data = fresh;
+    var day = fresh[state.dateKey];
+    if (!day || typeof day !== 'object' || Array.isArray(day)) { day = {}; fresh[state.dateKey] = day; }
+    var existing = (day[sub] && typeof day[sub] === 'object') ? day[sub] : null;
+    var oldText = existing ? String(existing.text == null ? '' : existing.text) : '';
+    var want = text.trim() ? { text: text, at: stamp(new Date()) } : null;
+    var unchanged = want ? (!!existing && oldText === text) : !existing;
+
+    state.dirty[sub] = false;
+    if (unchanged) {
+      renderChip(sub);
+      if (!silent) setStatus(sub + '：内容未变化，无需重复保存');
+      return;
+    }
+    if (want) day[sub] = want; else delete day[sub];
+    if (!Object.keys(day).length) delete fresh[state.dateKey];
+    writeStore(fresh);
+    state.data = fresh;
+    renderMeta(sub, want);
+    renderChip(sub);
+    renderHeader();
+    if (!silent) {
+      setStatus(want
+        ? (sub + ' 已保存 · ' + want.at.slice(11))
+        : (sub + ' 已清空，展示为「今日无作业」'));
+    }
+  }
+
+  function flushAll() {
+    SUBJECTS.forEach(function (sub) { if (state.dirty[sub]) saveSubject(sub, true); });
+  }
+  function prepareEditAction() {
+    if (state.mode !== 'edit') return;
+    syncDraftsFromDOM();
+    flushAll();
+  }
+
+  /* ========== 双态切换与日期翻页 ========== */
+  function enterEdit() {
+    if (state.mode === 'edit') {
+      var first0 = cards[SUBJECTS[0]].querySelector('.hw-input');
+      if (first0) first0.focus();
+      return;
+    }
+    state.mode = 'edit';
+    initDrafts();
+    renderAll();
+    setStatus('编辑态：六科录完点「保存并退出」');
+    var first = cards[SUBJECTS[0]].querySelector('.hw-input');
+    if (first) first.focus();
+  }
+  function exitEdit() {
+    if (state.mode !== 'edit') return;
+    syncDraftsFromDOM();
+    flushAll();
+    state.mode = 'view';
+    renderAll();
+    setStatus('已保存并退出编辑态');
+    $('enterBtn').focus();
+  }
+  function goToDate(k) {
+    prepareEditAction();
+    state.dateKey = k;
+    if (state.mode === 'edit') initDrafts();
+    renderAll();
+    setStatus('正在查看 ' + k + (k === todayKey() ? '（今天）' : '（历史日期）'));
+  }
+  function shiftDate(n) { goToDate(shiftKey(state.dateKey, n)); }
+
+  /* ========== 沿用昨天再改 ========== */
+  function carryFromPrev() {
+    if (state.mode !== 'edit') return;
+    prepareEditAction();
+    var prev = shiftKey(state.dateKey, -1);
+    var pd = getDay(prev), n = 0;
+    SUBJECTS.forEach(function (sub) {
+      var r = pd[sub];
+      if (!r || typeof r !== 'object') return;
+      var t = String(r.text == null ? '' : r.text);
+      if (!t.trim()) return;
+      var d = state.drafts[sub];
+      if (String(d.text).trim()) return;          // 不覆盖当前已填内容
+      d.text = t;
+      state.dirty[sub] = true;
+      n++;
+    });
+    renderAll();
+    var first = cards[SUBJECTS[0]].querySelector('.hw-input');
+    if (first) first.focus();
+    setStatus(n ? ('已沿用 ' + prev + ' 的 ' + n + ' 科，请核对后保存')
+                : ('前一天（' + prev + '）无可沿用的作业'));
+  }
+
+  /* ========== 导出 / 导入 JSON（仅编辑态） ========== */
+  function exportJSON() {
+    prepareEditAction();
+    try {
+      var blob = new Blob([JSON.stringify(state.data, null, 2)], { type: 'application/json;charset=utf-8' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = '班级作业数据-' + todayKey() + '.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+      setStatus('已导出 JSON：共 ' + Object.keys(state.data).length + ' 个日期，请妥善保存文件');
+    } catch (e) {
+      setStatus('导出失败：' + e.message);
+    }
+  }
+
+  function normalizeImport(text) {
+    var raw;
+    try { raw = JSON.parse(text); } catch (e) { throw new Error('不是合法的 JSON 文件'); }
+    var obj = raw;
+    if (raw && typeof raw === 'object' && !Array.isArray(raw) && raw.data && typeof raw.data === 'object') obj = raw.data;
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) throw new Error('数据结构不符合要求');
+    var out = {}, re = /^\d{4}-\d{2}-\d{2}$/;
+    Object.keys(obj).forEach(function (k) {
+      if (!re.test(k)) return;
+      var day = obj[k];
+      if (!day || typeof day !== 'object' || Array.isArray(day)) return;
+      var nd = {};
+      SUBJECTS.forEach(function (sub) {
+        var r = day[sub];
+        if (!r || typeof r !== 'object') return;
+        var t = String(r.text == null ? '' : r.text).slice(0, 3000);
+        if (!t.trim()) return;
+        var at = String(r.at == null ? '' : r.at);
+        nd[sub] = {
+          text: t,
+          at: /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(at) ? at : (k + ' 00:00')
+        };   // 兼容旧版本记录中的多余字段，导入时自动丢弃
+      });
+      if (Object.keys(nd).length) out[k] = nd;
+    });
+    return out;
+  }
+
+  function importJSON(ev) {
+    var input = ev.target;
+    var file = input.files && input.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      var incoming;
+      try { incoming = normalizeImport(String(reader.result)); }
+      catch (err) { setStatus('导入失败：' + err.message); input.value = ''; return; }
+      var days = Object.keys(incoming), count = 0;
+      days.forEach(function (k) { count += Object.keys(incoming[k]).length; });
+      if (!days.length) { setStatus('导入失败：文件中没有有效的日期作业数据'); input.value = ''; return; }
+      var ok = window.confirm('将导入 ' + days.length + ' 个日期、' + count + ' 条作业记录。\n相同日期与科目的记录会被覆盖，其余数据保留。是否继续？');
+      if (!ok) { setStatus('已取消导入'); input.value = ''; return; }
+
+      prepareEditAction();
+      var fresh = readStore();
+      days.forEach(function (k) {
+        var dst = fresh[k];
+        if (!dst || typeof dst !== 'object' || Array.isArray(dst)) { dst = {}; fresh[k] = dst; }
+        Object.keys(incoming[k]).forEach(function (sub) { dst[sub] = incoming[k][sub]; });
+      });
+      state.data = fresh;
+      writeStore(fresh);
+      if (state.mode === 'edit') initDrafts();
+      renderAll();
+      setStatus('导入完成：恢复 / 合并 ' + days.length + ' 个日期、' + count + ' 条记录');
+      input.value = '';
+    };
+    reader.onerror = function () { setStatus('导入失败：无法读取文件'); input.value = ''; };
+    reader.readAsText(file, 'utf-8');
+  }
+
+  /* ========== 事件绑定 ========== */
+  $('prevBtn').addEventListener('click', function () { shiftDate(-1); });
+  $('nextBtn').addEventListener('click', function () { shiftDate(1); });
+  $('todayBtn').addEventListener('click', function () { goToDate(todayKey()); });
+  $('themeBtn').addEventListener('click', toggleTheme);
+  $('enterBtn').addEventListener('click', enterEdit);
+  $('exitBtn').addEventListener('click', exitEdit);
+  $('carryBtn').addEventListener('click', carryFromPrev);
+  $('exportBtn').addEventListener('click', exportJSON);
+  $('importBtn').addEventListener('click', function () { $('importFile').click(); });
+  $('importFile').addEventListener('change', importJSON);
+  $('autoFitBtn').addEventListener('click', toggleAutoFit);
+  $('fontMinus').addEventListener('click', function () { stepFont(-FONT_STEP); });
+  $('fontPlus').addEventListener('click', function () { stepFont(FONT_STEP); });
+
+  // 卡片区域用事件委托，重绘后无需重新绑定
+  board.addEventListener('input', function (e) {
+    if (state.mode !== 'edit' || !e.target.closest) return;
+    var card = e.target.closest('.card');
+    if (!card) return;
+    var sub = card.getAttribute('data-sub'), d = state.drafts[sub];
+    if (!d) return;
+    if (!e.target.classList.contains('hw-input')) return;
+    d.text = e.target.value;
+    state.dirty[sub] = true;
+    renderChip(sub);
+    if (state.fontMode === 'auto') applyFontToCard(sub);   // 输入时实时判断字号
+  });
+  board.addEventListener('keydown', function (e) {
+    if (!(e.ctrlKey && e.key === 'Enter')) return;
+    var card = e.target.closest ? e.target.closest('.card') : null;
+    if (!card || state.mode !== 'edit') return;
+    e.preventDefault();
+    syncDraftsFromDOM();
+    saveSubject(card.getAttribute('data-sub'));
+  });
+  board.addEventListener('focusout', function (e) {
+    if (state.mode !== 'edit' || !e.target.closest) return;
+    var card = e.target.closest('.card');
+    if (!card) return;
+    var sub = card.getAttribute('data-sub');
+    window.setTimeout(function () {
+      if (state.mode !== 'edit') return;
+      if (card.contains(document.activeElement)) return;   // 卡片内部换焦点不算失焦
+      syncDraftsFromDOM();
+      saveSubject(sub, true);
+    }, 0);
+  });
+
+  function isEditable(el) {
+    if (!el) return false;
+    var tag = el.tagName;
+    return tag === 'TEXTAREA' || tag === 'INPUT' || tag === 'SELECT' || el.isContentEditable;
+  }
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'F2') { e.preventDefault(); enterEdit(); return; }
+    if (e.key === 'Escape') {
+      if (state.mode === 'edit') { e.preventDefault(); exitEdit(); }
+      return;
+    }
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      if (isEditable(e.target) || e.isComposing || e.ctrlKey || e.altKey || e.metaKey) return;
+      e.preventDefault();
+      shiftDate(e.key === 'ArrowLeft' ? -1 : 1);
+    }
+  });
+
+  // 其他标签页/窗口修改数据时，展示态自动同步（编辑态只刷新元信息，不动正在输入的内容）
+  window.addEventListener('storage', function (e) {
+    if (e.key !== DATA_KEY) return;
+    state.data = readStore();
+    if (state.mode === 'view') renderAll();
+    else {
+      SUBJECTS.forEach(function (sub) { renderMeta(sub, getRec(state.dateKey, sub)); });
+      renderHeader();
+    }
+  });
+  window.addEventListener('resize', function () {
+    if (state.fontMode === 'auto') refreshFonts();   // 窗口尺寸变化后重新判断能否容纳
+  });
+  window.addEventListener('beforeunload', function () {
+    if (state.mode === 'edit') { syncDraftsFromDOM(); flushAll(); }
+  });
+
+  /* ========== 启动 ========== */
+  state.storageOK = probeStorage();
+  loadTheme();
+  loadFontPref();
+  loadData();
+  state.dateKey = todayKey();     // 新的一天打开天然是空白页
+  initDrafts();
+  renderAll();
+  setStatus(state.storageOK ? '已就绪：展示态只读，按 F2 开始录入' : '已就绪（无本地存储）：请及时导出备份');
+})();
+</script>
+</body>
+</html>
